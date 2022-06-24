@@ -51,25 +51,105 @@
   ## install zammad
   ##################################
 
-  # TODO
+  - name: Check for git working tree
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    stat:
+      path: /home/pacs/{{pac}}/users/{{user}}/dolibarr
+    register: workingtree
+  - name: get zammad repo
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    git:
+      repo: https://github.com/zammad/zammad.git
+      version: "stable"
+      dest: /home/pacs/{{pac}}/users/{{user}}/zammad
+    when: not workingtree.stat.exists
+
+  - name: install ruby packages
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    shell: |
+      . ~/.profile
+      bundle config set without "test development mysql" || exit -1
+      bundle install || exit -1
+      touch ~/.ansible.rubypackages
+    args:
+        executable: /bin/bash
+        chdir: "/home/pacs/{{pac}}/users/{{user}}/zammad"
+        creates: /home/pacs/{{pac}}/users/{{user}}/.ansible.rubypackages
 
   ##################################
   ## configuration
   ##################################
 
-  # TODO
+  - name: upload database configuration
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template: dest="/home/pacs/{{pac}}/users/{{user}}/zammad/config/database.yml" src="templates/database.yml" mode=0600
 
   ######################
   ## initialise instance
   ######################
 
-  # TODO
+  - name: initialise instance
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    shell: |
+      . ~/.profile
+      export RAILS_ENV="production"
+      rake db:migrate || exit -1
+      rake db:seed || exit -1
+      rails r "Locale.sync" || exit -1
+      rails r "Translation.sync" || exit -1
+      rake assets:precompile || exit -1
+      touch ~/.ansible.dbinitialised
+    args:
+        executable: /bin/bash
+        chdir: "/home/pacs/{{pac}}/users/{{user}}/zammad"
+        creates: /home/pacs/{{pac}}/users/{{user}}/.ansible.dbinitialised
 
   ########################
   ## setup the apache site
   ########################
 
-  # TODO
+  - name: drop htdocs-ssl
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+       path: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/htdocs-ssl"
+       state: absent
+  - name: drop app-ssl
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+       path: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/app-ssl"
+       state: absent
+  - name: create symbolic link for htdocs-ssl
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+      src: "/home/pacs/{{pac}}/users/{{user}}/zammad/public"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/htdocs-ssl"
+      state: link
+  - name: create symbolic link for app-ssl
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    file:
+      src: "/home/pacs/{{pac}}/users/{{user}}/zammad"
+      dest: "/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/app-ssl"
+      state: link
+  - name: upload htaccess
+    become: yes
+    become_user: "{{pac}}-{{user}}"
+    template: dest="/home/pacs/{{pac}}/users/{{user}}/doms/{{domain}}/.htaccess" src="templates/htaccess_domain"
+
+  ####################################
+  ## setup Elasticsearch
+  ####################################
+
+  # zammad run rails r "Setting.set('es_url', 'http://localhost:9200')"
+  # zammad run rake zammad:searchindex:rebuild
 
   ####################################
   ## install cron jobs
