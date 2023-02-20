@@ -55,14 +55,14 @@
     become: yes
     become_user: "{{pac}}-{{user}}"
     stat:
-      path: /home/pacs/{{pac}}/users/{{user}}/dolibarr
+      path: /home/pacs/{{pac}}/users/{{user}}/zammad
     register: workingtree
   - name: get zammad repo
     become: yes
     become_user: "{{pac}}-{{user}}"
     git:
       repo: https://github.com/zammad/zammad.git
-      version: "stable"
+      version: "{{zammadversion}}"
       dest: /home/pacs/{{pac}}/users/{{user}}/zammad
     when: not workingtree.stat.exists
 
